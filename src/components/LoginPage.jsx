@@ -49,9 +49,10 @@ function LoginPage() {
         password
       );
       const user = userCredential.user;
-
-      alert("Logged in successfully");
-      navigate("/admin");
+      if (user) {
+        alert("Logged in successfully");
+        navigate("/admin");
+      }
     } catch (error) {
       alert("Error logging in: " + error.message);
     }
