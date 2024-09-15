@@ -8,6 +8,7 @@ import {
   collection,
   getDocs,
   doc,
+  getDoc,
   updateDoc,
   deleteDoc,
 } from "firebase/firestore";
@@ -15,8 +16,21 @@ import {
 function AdminPanel() {
   const [users, setUsers] = useState([]);
   const [selectedUsers, setSelectedUsers] = useState([]);
+  const [currentUser, setCurrentUser] = useState(null); // For Firebase Auth user
+  const [userName, setUserName] = useState(""); // New state for user's name
   const navigate = useNavigate();
+
   useEffect(() => {
+    // Fetch the logged-in user from Firebase Auth
+    const fetchCurrentUser = () => {
+      const user = auth.currentUser;
+      if (user) {
+        setCurrentUser(user);
+        // Fetch user's name from Firestore
+        fetchUserName(user.uid);
+      }
+    };
+
     const fetchUsers = async () => {
       const querySnapshot = await getDocs(collection(db, "users"));
       const usersList = querySnapshot.docs.map((doc) => ({
@@ -25,6 +39,15 @@ function AdminPanel() {
       }));
       setUsers(usersList);
     };
+
+    const fetchUserName = async (uid) => {
+      const userDoc = await getDoc(doc(db, "users", uid));
+      if (userDoc.exists()) {
+        setUserName(userDoc.data().name || "User"); // Set name from Firestore
+      }
+    };
+
+    fetchCurrentUser();
     fetchUsers();
   }, []);
 
@@ -93,9 +116,14 @@ function AdminPanel() {
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-3xl font-bold">User Registry</h2>
-        <button className="text-blue-500 underline" onClick={handleLogout}>
-          Logout
-        </button>
+        <div>
+          <span className="mr-4">
+            Hello, {userName || currentUser?.email || "User"}!
+          </span>
+          <button className="text-blue-500 underline" onClick={handleLogout}>
+            Logout
+          </button>
+        </div>
       </div>
 
       <div className="flex justify-start mb-4">
