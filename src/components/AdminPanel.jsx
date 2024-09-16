@@ -15,8 +15,8 @@ import {
 function AdminPanel() {
   const [users, setUsers] = useState([]);
   const [selectedUsers, setSelectedUsers] = useState([]);
-  const [currentUser, setCurrentUser] = useState(null); // For Firebase Auth user
-  const [userName, setUserName] = useState(""); // New state for user's name
+  const [currentUser, setCurrentUser] = useState(null);
+  const [userName, setUserName] = useState("");
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -31,15 +31,15 @@ function AdminPanel() {
 
           if (userData.status === "Blocked") {
             alert("Your account is blocked. You will be logged out.");
-            await signOut(auth); // Sign out the blocked user
-            navigate("/login"); // Redirect to the login page
+            await signOut(auth);
+            navigate("/login");
           } else if (userData.status === "Deleted") {
             alert("Your account has been deleted. You will be logged out.");
             await signOut(auth);
             navigate("/login");
           } else {
-            setCurrentUser(user); // Set the current user object from auth
-            setUserName(userData.name || "User"); // Set name from Firestore
+            setCurrentUser(user);
+            setUserName(userData.name || "User");
           }
         }
       }
@@ -105,7 +105,6 @@ function AdminPanel() {
     setSelectedUsers([]);
   };
 
-  // Soft delete users by marking them as "Deleted"
   const handleDeleteUsers = async () => {
     await Promise.all(
       selectedUsers.map(async (userId) => {
