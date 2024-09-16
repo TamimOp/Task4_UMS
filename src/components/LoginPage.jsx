@@ -3,9 +3,10 @@ import { useNavigate } from "react-router-dom";
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  signOut,
 } from "firebase/auth";
 import { auth, db } from "../firebase";
-import { doc, setDoc } from "firebase/firestore";
+import { doc, setDoc, getDoc } from "firebase/firestore";
 
 function LoginPage() {
   const [email, setEmail] = useState("");
@@ -49,9 +50,21 @@ function LoginPage() {
         password
       );
       const user = userCredential.user;
-      if (user) {
-        alert("Logged in successfully");
-        navigate("/admin");
+
+      // Check if the user is blocked
+      const userDoc = await getDoc(doc(db, "users", user.uid));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        if (userData.status === "Blocked") {
+          alert("Your account is blocked. Please contact the admin.");
+          await signOut(auth); // Log out the user
+          return;
+        } else {
+          alert("Logged in successfully");
+          navigate("/admin");
+        }
+      } else {
+        alert("User data not found.");
       }
     } catch (error) {
       alert("Error logging in: " + error.message);
@@ -66,26 +79,32 @@ function LoginPage() {
         </h2>
 
         <form onSubmit={isRegistering ? handleRegister : handleLogin}>
-          <div className="mb-4">
-            <label htmlFor="Name">Name</label>
-            <input
-              type="name"
-              id="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
-              required
-            />
-            <label htmlFor="position">Position</label>
-            <input
-              type="position"
-              id="position"
-              value={position}
-              onChange={(e) => setPosition(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
-              required
-            />
+          {isRegistering && (
+            <>
+              <div className="mb-4">
+                <label htmlFor="Name">Name</label>
+                <input
+                  type="name"
+                  id="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                  required
+                />
+                <label htmlFor="position">Position</label>
+                <input
+                  type="position"
+                  id="position"
+                  value={position}
+                  onChange={(e) => setPosition(e.target.value)}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                  required
+                />
+              </div>
+            </>
+          )}
 
+          <div className="mb-6">
             <label
               htmlFor="email"
               className="block text-sm font-medium text-gray-700"
