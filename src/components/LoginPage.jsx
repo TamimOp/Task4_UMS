@@ -13,7 +13,7 @@ import {
   updateDoc,
   collection,
   getDocs,
-} from "firebase/firestore"; // Fixed import
+} from "firebase/firestore";
 
 function LoginPage() {
   const [email, setEmail] = useState("");
@@ -30,7 +30,6 @@ function LoginPage() {
       const querySnapshot = await getDocs(usersRef);
       let userDoc = null;
 
-      // Check if user was marked as "Deleted"
       querySnapshot.forEach((doc) => {
         const userData = doc.data();
         if (userData.email === email && userData.status === "Deleted") {
@@ -39,11 +38,9 @@ function LoginPage() {
       });
 
       if (userDoc) {
-        // Reactivate the deleted user
         await updateDoc(doc(db, "users", userDoc.id), { status: "Active" });
         alert("Your account has been reactivated!");
       } else {
-        // Proceed with normal registration
         const userCredential = await createUserWithEmailAndPassword(
           auth,
           email,
@@ -78,7 +75,6 @@ function LoginPage() {
       );
       const user = userCredential.user;
 
-      // Check if the user is blocked or deleted
       const userDoc = await getDoc(doc(db, "users", user.uid));
       if (userDoc.exists()) {
         const userData = userDoc.data();
@@ -92,8 +88,6 @@ function LoginPage() {
           return;
         }
       }
-
-      // Update last login timestamp
       await updateDoc(doc(db, "users", user.uid), {
         lastLogin: new Date().toISOString(),
       });
