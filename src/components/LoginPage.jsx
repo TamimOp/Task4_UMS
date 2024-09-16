@@ -6,7 +6,14 @@ import {
   signOut,
 } from "firebase/auth";
 import { auth, db } from "../firebase";
-import { doc, setDoc, getDoc } from "firebase/firestore";
+import {
+  doc,
+  setDoc,
+  getDoc,
+  updateDoc,
+  collection,
+  getDocs,
+} from "firebase/firestore"; // Fixed import
 
 function LoginPage() {
   const [email, setEmail] = useState("");
@@ -19,22 +26,42 @@ function LoginPage() {
   const handleRegister = async (e) => {
     e.preventDefault();
     try {
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
-      const user = userCredential.user;
+      const usersRef = collection(db, "users");
+      const querySnapshot = await getDocs(usersRef);
+      let userDoc = null;
 
-      await setDoc(doc(db, "users", user.uid), {
-        name: name,
-        position: position,
-        email: user.email,
-        lastLogin: new Date().toISOString(),
-        status: "Active",
+      // Check if user was marked as "Deleted"
+      querySnapshot.forEach((doc) => {
+        const userData = doc.data();
+        if (userData.email === email && userData.status === "Deleted") {
+          userDoc = doc;
+        }
       });
 
-      alert("User registered successfully");
+      if (userDoc) {
+        // Reactivate the deleted user
+        await updateDoc(doc(db, "users", userDoc.id), { status: "Active" });
+        alert("Your account has been reactivated!");
+      } else {
+        // Proceed with normal registration
+        const userCredential = await createUserWithEmailAndPassword(
+          auth,
+          email,
+          password
+        );
+        const user = userCredential.user;
+
+        await setDoc(doc(db, "users", user.uid), {
+          name: name,
+          position: position,
+          email: user.email,
+          lastLogin: new Date().toISOString(),
+          status: "Active",
+        });
+
+        alert("User registered successfully");
+      }
+
       navigate("/admin");
     } catch (error) {
       alert("Error registering user: " + error.message);
@@ -51,113 +78,100 @@ function LoginPage() {
       );
       const user = userCredential.user;
 
-      // Check if the user is blocked
+      // Check if the user is blocked or deleted
       const userDoc = await getDoc(doc(db, "users", user.uid));
       if (userDoc.exists()) {
         const userData = userDoc.data();
         if (userData.status === "Blocked") {
-          alert("Your account is blocked. Please contact the admin.");
-          await signOut(auth); // Log out the user
+          alert("Your account is blocked.");
+          await signOut(auth);
           return;
-        } else {
-          alert("Logged in successfully");
-          navigate("/admin");
+        } else if (userData.status === "Deleted") {
+          alert("Your account has been deleted.");
+          await signOut(auth);
+          return;
         }
-      } else {
-        alert("User data not found.");
       }
+
+      // Update last login timestamp
+      await updateDoc(doc(db, "users", user.uid), {
+        lastLogin: new Date().toISOString(),
+      });
+
+      alert("User logged in successfully");
+      navigate("/admin");
     } catch (error) {
       alert("Error logging in: " + error.message);
     }
   };
 
   return (
-    <div className="flex justify-center items-center h-screen bg-gray-100">
-      <div className="p-8 bg-white shadow-lg rounded-lg">
-        <h2 className="text-2xl font-bold mb-6">
+    <div className="h-screen flex justify-center items-center">
+      <form
+        onSubmit={isRegistering ? handleRegister : handleLogin}
+        className="p-6 bg-white rounded shadow-md"
+      >
+        <h2 className="text-2xl font-bold mb-4">
           {isRegistering ? "Register" : "Login"}
         </h2>
 
-        <form onSubmit={isRegistering ? handleRegister : handleLogin}>
-          {isRegistering && (
-            <>
-              <div className="mb-4">
-                <label htmlFor="Name">Name</label>
-                <input
-                  type="name"
-                  id="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
-                  required
-                />
-                <label htmlFor="position">Position</label>
-                <input
-                  type="position"
-                  id="position"
-                  value={position}
-                  onChange={(e) => setPosition(e.target.value)}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
-                  required
-                />
-              </div>
-            </>
-          )}
-
-          <div className="mb-6">
-            <label
-              htmlFor="email"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Email
-            </label>
+        {isRegistering && (
+          <>
             <input
-              type="email"
-              id="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Name"
+              className="border mb-4 p-2 w-full"
               required
             />
-          </div>
-
-          <div className="mb-6">
-            <label
-              htmlFor="password"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Password
-            </label>
             <input
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
-              required
+              type="text"
+              value={position}
+              onChange={(e) => setPosition(e.target.value)}
+              placeholder="Position"
+              className="border mb-4 p-2 w-full"
             />
-          </div>
+          </>
+        )}
 
-          <button
-            type="submit"
-            className="w-full bg-blue-500 text-white py-2 px-4 rounded-md"
-          >
-            {isRegistering ? "Register" : "Login"}
-          </button>
-        </form>
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="Email"
+          className="border mb-4 p-2 w-full"
+          required
+        />
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="Password"
+          className="border mb-4 p-2 w-full"
+          required
+        />
 
-        <p className="mt-4 text-sm text-center">
+        <button
+          type="submit"
+          className="bg-blue-500 text-white py-2 px-4 rounded w-full"
+        >
+          {isRegistering ? "Register" : "Login"}
+        </button>
+
+        <p className="mt-4 text-center">
           {isRegistering
             ? "Already have an account?"
-            : "Don't have an account?"}
+            : "Don't have an account?"}{" "}
           <button
-            className="text-blue-500 ml-2"
+            type="button"
+            className="text-blue-500 underline"
             onClick={() => setIsRegistering(!isRegistering)}
           >
             {isRegistering ? "Login" : "Register"}
           </button>
         </p>
-      </div>
+      </form>
     </div>
   );
 }

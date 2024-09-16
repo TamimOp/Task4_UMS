@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { signOut, deleteUser } from "firebase/auth";
+import { signOut } from "firebase/auth";
 import { auth, db } from "../firebase";
 import { BsUnlockFill } from "react-icons/bs";
 import { MdDeleteForever } from "react-icons/md";
@@ -10,7 +10,6 @@ import {
   doc,
   getDoc,
   updateDoc,
-  deleteDoc,
 } from "firebase/firestore";
 
 function AdminPanel() {
@@ -22,21 +21,22 @@ function AdminPanel() {
 
   useEffect(() => {
     const fetchCurrentUserAndData = async () => {
-      // Fetch the logged-in user from Firebase Auth
       const user = auth.currentUser;
 
       if (user) {
-        // Fetch user's data from Firestore to check status
         const userDoc = await getDoc(doc(db, "users", user.uid));
 
         if (userDoc.exists()) {
           const userData = userDoc.data();
 
-          // Check if the user is blocked
           if (userData.status === "Blocked") {
             alert("Your account is blocked. You will be logged out.");
             await signOut(auth); // Sign out the blocked user
             navigate("/login"); // Redirect to the login page
+          } else if (userData.status === "Deleted") {
+            alert("Your account has been deleted. You will be logged out.");
+            await signOut(auth);
+            navigate("/login");
           } else {
             setCurrentUser(user); // Set the current user object from auth
             setUserName(userData.name || "User"); // Set name from Firestore
@@ -44,18 +44,17 @@ function AdminPanel() {
         }
       }
 
-      // Fetch the list of all users from Firestore
       const querySnapshot = await getDocs(collection(db, "users"));
       const usersList = querySnapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }));
 
-      setUsers(usersList); // Set the users list
+      setUsers(usersList);
     };
 
-    fetchCurrentUserAndData(); // Call the async function
-  }, [navigate]); // Added navigate as a dependency to prevent stale closure
+    fetchCurrentUserAndData();
+  }, [navigate]);
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -106,28 +105,11 @@ function AdminPanel() {
     setSelectedUsers([]);
   };
 
-  // Function to delete users from Firebase Auth and Firestore
+  // Soft delete users by marking them as "Deleted"
   const handleDeleteUsers = async () => {
     await Promise.all(
       selectedUsers.map(async (userId) => {
-        const userDoc = await getDoc(doc(db, "users", userId));
-
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-
-          // Deleting from Firestore
-          await deleteDoc(doc(db, "users", userId));
-
-          // If current authenticated user is being deleted
-          if (userData.email === currentUser.email) {
-            await deleteUser(auth.currentUser); // Delete the Firebase Auth account of the current user
-          } else {
-            // To delete other users, you'll need Firebase Admin SDK
-            console.warn(
-              "Cannot delete other users' Firebase Auth profile from client-side!"
-            );
-          }
-        }
+        await updateDoc(doc(db, "users", userId), { status: "Deleted" });
       })
     );
     setUsers((prevUsers) =>
