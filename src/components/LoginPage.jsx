@@ -10,8 +10,9 @@ import {
   doc,
   setDoc,
   getDoc,
-  updateDoc,
+  query,
   collection,
+  where,
   getDocs,
 } from "firebase/firestore";
 
@@ -26,39 +27,30 @@ function LoginPage() {
   const handleRegister = async (e) => {
     e.preventDefault();
     try {
-      const usersRef = collection(db, "users");
-      const querySnapshot = await getDocs(usersRef);
-      let userDoc = null;
+      const q = query(collection(db, "users"), where("email", "==", email));
+      const querySnapshot = await getDocs(q);
 
-      querySnapshot.forEach((doc) => {
-        const userData = doc.data();
-        if (userData.email === email && userData.status === "Deleted") {
-          userDoc = doc;
-        }
-      });
-
-      if (userDoc) {
-        await updateDoc(doc(db, "users", userDoc.id), { status: "Active" });
-        alert("Your account has been reactivated!");
-      } else {
-        const userCredential = await createUserWithEmailAndPassword(
-          auth,
-          email,
-          password
-        );
-        const user = userCredential.user;
-
-        await setDoc(doc(db, "users", user.uid), {
-          name: name,
-          position: position,
-          email: user.email,
-          lastLogin: new Date().toISOString(),
-          status: "Active",
-        });
-
-        alert("User registered successfully");
+      if (!querySnapshot.empty) {
+        alert("This email is already registered.");
+        return;
       }
 
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
+      const user = userCredential.user;
+
+      await setDoc(doc(db, "users", user.uid), {
+        name: name,
+        position: position,
+        email: user.email,
+        lastLogin: new Date().toISOString(),
+        status: "Active",
+      });
+
+      alert("User registered successfully");
       navigate("/admin");
     } catch (error) {
       alert("Error registering user: " + error.message);
@@ -79,93 +71,108 @@ function LoginPage() {
       if (userDoc.exists()) {
         const userData = userDoc.data();
         if (userData.status === "Blocked") {
-          alert("Your account is blocked.");
+          alert("Your account is blocked. Please contact the admin.");
           await signOut(auth);
           return;
-        } else if (userData.status === "Deleted") {
-          alert("Your account has been deleted.");
-          await signOut(auth);
-          return;
+        } else {
+          alert("Logged in successfully");
+          navigate("/admin");
         }
+      } else {
+        alert("User data not found.");
       }
-      await updateDoc(doc(db, "users", user.uid), {
-        lastLogin: new Date().toISOString(),
-      });
-
-      alert("User logged in successfully");
-      navigate("/admin");
     } catch (error) {
       alert("Error logging in: " + error.message);
     }
   };
 
   return (
-    <div className="h-screen flex justify-center items-center">
-      <form
-        onSubmit={isRegistering ? handleRegister : handleLogin}
-        className="p-6 bg-white rounded shadow-md"
-      >
-        <h2 className="text-2xl font-bold mb-4">
+    <div className="flex justify-center items-center h-screen bg-gray-100">
+      <div className="p-8 bg-white shadow-lg rounded-lg">
+        <h2 className="text-2xl font-bold mb-6">
           {isRegistering ? "Register" : "Login"}
         </h2>
 
-        {isRegistering && (
-          <>
+        <form onSubmit={isRegistering ? handleRegister : handleLogin}>
+          {isRegistering && (
+            <>
+              <div className="mb-4">
+                <label htmlFor="Name">Name</label>
+                <input
+                  type="name"
+                  id="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                  required
+                />
+                <label htmlFor="position">Position</label>
+                <input
+                  type="position"
+                  id="position"
+                  value={position}
+                  onChange={(e) => setPosition(e.target.value)}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                  required
+                />
+              </div>
+            </>
+          )}
+
+          <div className="mb-6">
+            <label
+              htmlFor="email"
+              className="block text-sm font-medium text-gray-700"
+            >
+              Email
+            </label>
             <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Name"
-              className="border mb-4 p-2 w-full"
+              type="email"
+              id="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
               required
             />
+          </div>
+
+          <div className="mb-6">
+            <label
+              htmlFor="password"
+              className="block text-sm font-medium text-gray-700"
+            >
+              Password
+            </label>
             <input
-              type="text"
-              value={position}
-              onChange={(e) => setPosition(e.target.value)}
-              placeholder="Position"
-              className="border mb-4 p-2 w-full"
+              type="password"
+              id="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+              required
             />
-          </>
-        )}
+          </div>
 
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="Email"
-          className="border mb-4 p-2 w-full"
-          required
-        />
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Password"
-          className="border mb-4 p-2 w-full"
-          required
-        />
+          <button
+            type="submit"
+            className="w-full bg-blue-500 text-white py-2 px-4 rounded-md"
+          >
+            {isRegistering ? "Register" : "Login"}
+          </button>
+        </form>
 
-        <button
-          type="submit"
-          className="bg-blue-500 text-white py-2 px-4 rounded w-full"
-        >
-          {isRegistering ? "Register" : "Login"}
-        </button>
-
-        <p className="mt-4 text-center">
+        <p className="mt-4 text-sm text-center">
           {isRegistering
             ? "Already have an account?"
-            : "Don't have an account?"}{" "}
+            : "Don't have an account?"}
           <button
-            type="button"
-            className="text-blue-500 underline"
+            className="text-blue-500 ml-2"
             onClick={() => setIsRegistering(!isRegistering)}
           >
             {isRegistering ? "Login" : "Register"}
           </button>
         </p>
-      </form>
+      </div>
     </div>
   );
 }
